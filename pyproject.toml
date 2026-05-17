@@ -1,0 +1,22 @@
+[tool.ruff]
+# Target Python version
+target-version = "py39"
+
+# Same as Black's default line length
+line-length = 88
+
+[tool.ruff.lint]
+# Enable Pyflakes (`F`) and Pylint (`PL`) codes
+# Also include common warnings like unused imports
+select = ["E", "F", "W", "I", "N", "UP", "PL", "RUF"]
+
+# Ignore some specific rules if needed
+ignore = ["PLR0913"] # Ignore "Too many arguments in function definition"
+
+# Allow unused variables when they start with an underscore
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-0_]*[a-zA-Z0-0]+?))$"
+
+[tool.ruff.lint.isort]
+# Sort imports
+combine-as-imports = true
+known-first-party = ["script"]

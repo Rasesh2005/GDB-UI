@@ -1,0 +1,87 @@
+GDB-UI Project Architecture & Implementation Rules
+
+Project Context
+
+You are building GDB-UI, a production-ready, multiuser, web-based interface for the GNU Debugger (GDB). The system allows users to securely compile and debug C/C++ code in isolated environments. The architecture is strictly state-driven and event-driven, relying on bidirectional WebSockets rather than HTTP polling.
+
+Core Tech Stack
+
+Backend: Python 3.10+, FastAPI (ASGI), uvloop, asyncio, pygdbmi, docker (Python SDK), boto3 (AWS S3).
+
+Frontend: React 18+, React Context API, xterm.js (for terminal rendering), react-window (for DOM virtualization).
+
+Infrastructure: Docker
+
+Global Architectural Directives
+
+No HTTP Polling: Never implement setInterval or HTTP polling for fetching debugger state. All state changes must be pushed from the backend via WebSockets.
+
+Single Source of Truth: The backend maintains a canonical DebugState (validated via Pydantic). The frontend UI is purely reactive to state_update delta payloads.
+
+Non-Blocking: The backend must never block the ASGI event loop. All GDB stdout reading, file I/O, and Docker SDK calls must utilize asyncio or asyncio.to_thread.
+
+Backend Development Rules (FastAPI + Python)
+
+1. GDB Machine Interface (pygdbmi) Handling
+
+Communicate with GDB exclusively using the MI2/MI3 protocol (--interpreter=mi2 or mi3).
+
+Command Tokenization: Every MI command issued to GDB must be prefixed with a strictly monotonically increasing numerical token (e.g., 142-stack-list-locals 1) to prevent race conditions and multiplex the I/O stream securely.
+
+Event Loop Polling: Use an asynchronous background task per session to continuously read GDB's stdout via pygdbmi. React to out-of-band async records (e.g., *stopped, =thread-created).
+
+2. Session Management & Persistence
+
+Map user connections using a session_id (UUID).
+
+Persistence Workflow: - When a WebSocket disconnects, start a 15-minute grace period timer.
+
+If the timer expires, compress the session's /workspace (source, binaries, breakpoint JSON metadata) into a tar.gz archive.
+
+Issue a SIGKILL to the associated Docker container and clean up host directories.
+
+On reconnect, reverse this process: fetch from S3, extract to a new /tmp/sandbox/<uuid>, spawn container, and inject MI commands to restore breakpoints.
+
+Docker & Security Constraints (CRITICAL)
+
+When writing code that utilizes the docker Python SDK to spawn sandboxes, you MUST strictly adhere to these security parameters to prevent host compromise and DoS attacks:
+
+Network: network_mode="none" (Absolute isolation, no internet access).
+
+Filesystem: read_only=True. The only writable path should be a volume bind mount mapping a host /tmp/sandboxes/<uuid> to the container's /workspace.
+
+Capabilities: - cap_drop=["ALL"]
+
+cap_add=["SYS_PTRACE"] (Crucial for GDB to attach to processes).
+
+Privileges: security_opt=["no-new-privileges"].
+
+Cgroups / Resource Limits:
+
+mem_limit MUST be set (e.g., "256m") to prevent Memory allocation DoS.
+
+pids_limit MUST be set (e.g., 64) to prevent Fork Bombs.
+
+nano_cpus or cpu_quota MUST be set to prevent infinite loop CPU lockups.
+
+Frontend Development Rules (React)
+
+1. State Management & Reactivity
+
+Context API Splitting: Segregate state into atomic domains to prevent massive re-renders (e.g., TerminalContext, StackContext, LocalsContext).
+
+Delta Application: When receiving a {"type": "state_update", "data": {...}} WebSocket message, merge the data intelligently. Do not blindly replace entire arrays if only a single property changed. Preserve React Keys.
+
+Memoization: Deeply nested components (like a specific memory address row or register row) must be wrapped in React.memo with custom equality comparators to ensure they only re-render if their exact slice of data changes.
+
+2. UI Components
+
+Terminal: Use xterm.js for all terminal and GDB console outputs. Append lines directly to the xterm instance rather than storing the entire terminal history in React state.
+
+Virtualization: For large data lists (like massive arrays in memory or the Locals tab), use react-window or react-virtuoso to keep the DOM node count low and maintain 60 FPS.
+
+Testing & CI/CD Requirements
+
+When writing backend tests (pytest), mock the Docker environment and simulate GDB stdout streams. Do not rely on actual C++ binaries for unit logic testing.
+
+Write explicit security integration tests (e.g., assertions that verify a C program attempting to read /etc/passwd results in a permission error).

@@ -1,0 +1,39 @@
+FROM python:3.11-slim
+
+# Install Docker CLI so the server can spawn sibling containers
+RUN apt-get update && apt-get install -y \
+    curl \
+    ca-certificates \
+    && install -m 0755 -d /etc/apt/keyrings \
+    && curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc \
+    && chmod a+r /etc/apt/keyrings/docker.asc \
+    && echo \
+      "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian \
+      $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+      > /etc/apt/sources.list.d/docker.list \
+    && apt-get update && apt-get install -y docker-ce-cli \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies (uvicorn[standard] pulls in websockets — required for WS support)
+RUN pip install --no-cache-dir \
+    fastapi \
+    "uvicorn[standard]" \
+    websockets \
+    docker \
+    pygdbmi
+
+WORKDIR /app
+
+# Copy server and pre-built frontend
+COPY script.py .
+COPY frontend/dist ./frontend/dist
+
+# Expose port
+EXPOSE 8000
+
+# Entrypoint: fix Docker socket permissions so the app can talk to the host daemon,
+# then hand off to uvicorn
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]
+

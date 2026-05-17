@@ -1,0 +1,20 @@
+services:
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    image: gdb-sandbox-server:latest
+    ports:
+      - "8000:8000"
+    volumes:
+      # DooD: share the host Docker socket so the server can spawn sandbox containers
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Sandboxes live on the host so GDB (inside Docker exec) can reach them
+      - /tmp/sandboxes:/tmp/sandboxes
+      - /tmp/data:/tmp/data
+      # Mount local application files to bypass needing an image rebuild
+      - ./script.py:/app/script.py
+      - ./frontend/dist:/app/frontend/dist
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
