@@ -1,41 +1,121 @@
 # GDB-UI
 
-This project is a web-based interface for interacting with GDB, running inside isolated Docker sandboxes.
+A web-based GDB debugger interface that runs C/C++ programs inside isolated Docker sandboxes with full reverse-debugging support.
 
-## How it Works
+## Architecture
 
-1. **Backend**: A FastAPI server (`script.py`) manages the orchestration of Docker containers (sandboxes) where GDB runs. It communicates with the Docker daemon to spawn sibling containers.
-2. **Frontend**: A React application built with Vite provides the user interface (editor, terminal, profile view).
-3. **Docker-out-of-Docker (DooD)**: The server runs in a container and shares the host's Docker socket to manage sandbox containers.
+| Layer | Details |
+|---|---|
+| **Backend** | FastAPI server (`backend/`) — handles sessions, GDB/MI, WebSockets |
+| **Frontend** | React + Vite app (`frontend/`) — editor, terminal, debug panels |
+| **Sandbox** | Each session runs inside a Docker container (`sandbox-cpp` image) |
+| **DooD** | Server shares the host Docker socket to spawn sibling containers |
 
-## How to Start
+## Prerequisites
 
-### Prerequisites
-- Docker and Docker Compose installed.
-- Node.js installed (for building the frontend).
+- Python 3.10+
+- Docker (with the `sandbox-cpp` image built — see below)
+- Node.js 18+ (for building the frontend)
 
-### Steps
+## Quick Start (Local Dev)
 
-1. **Build the Frontend**
-   The Docker setup expects the frontend to be pre-built in the `frontend/dist` directory.
-   ```bash
-   cd frontend
-   npm install
-   npm run build
-   cd ..
-   ```
+### 1. Build the sandbox image
 
-2. **Run the Application**
-   Start the server.
-   ```bash
-   python script.py
-   ```
+```bash
+docker build -f Dockerfile -t sandbox-cpp .
+```
 
-3. **Access the App**
-   Open your browser and navigate to `http://localhost:8000`.
+### 2. Install Python dependencies
+
+```bash
+pip install fastapi "uvicorn[standard]" websockets docker pygdbmi
+```
+
+### 3. Build the frontend
+
+```bash
+cd frontend
+npm install
+npm run build
+cd ..
+```
+
+### 4. Run the backend
+
+```bash
+python3 -m backend.main
+```
+
+The app will be available at **http://localhost:8000**.
+
+## Running with Docker Compose (Production)
+
+> **Note:** Update `docker-compose.yml` to mount the `backend/` directory instead of `script.py` when the Docker image is updated.
+
+```bash
+# Build the server image first
+docker build -f Dockerfile.server -t gdb-sandbox-server .
+
+# Start everything
+docker compose up
+```
+
+Access at **http://localhost:8000**.
+
+## Development
+
+### Backend only (hot-reload)
+
+```bash
+uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+### Frontend dev server (with proxy to backend)
+
+```bash
+cd frontend
+npm run dev
+```
+
+### Run tests
+
+```bash
+# Backend tests
+pytest tests/
+
+# Frontend tests
+npm test
+```
 
 ## Directory Structure
-- `frontend/`: React source code.
-- `script.py`: Backend server logic.
-- `Dockerfile.server`: Dockerfile for the backend server.
-- `docker-compose.yml`: Orchestrates the services.
+
+```
+GDB-UI/
+├── backend/              # FastAPI application (main entry point)
+│   ├── main.py           # App factory, lifespan, router registration
+│   ├── config.py         # Paths, timeouts, env config
+│   ├── database.py       # SQLite user/session management
+│   ├── docker_utils.py   # Docker client helpers
+│   ├── models.py         # Pydantic models & DebugState
+│   ├── dependencies.py   # Auth dependency injection
+│   └── routers/
+│       ├── auth.py       # Login, register, logout
+│       ├── projects.py   # Project CRUD
+│       ├── execution.py  # Run endpoints
+│       └── websockets.py # Terminal & GDB debug WebSockets
+│   └── gdb/
+│       ├── controller.py # AsyncGdbController (GDB/MI protocol)
+│       └── session.py    # DebugSession, session registry
+├── frontend/             # React + Vite UI
+│   └── src/
+│       ├── components/   # ControlPanel, DataPanels, Editor, Terminal…
+│       └── contexts/     # DebugContext, TerminalContext, AuthContext
+├── tests/                # pytest test suite
+├── Dockerfile            # sandbox-cpp image (g++, gdb)
+├── Dockerfile.server     # Server image
+├── docker-compose.yml    # Production orchestration
+└── entrypoint.sh         # Docker socket permission fix + uvicorn
+```
+## TODO / Future Improvements
+
+- **Better GDB Confirmation Handling**: Currently, GDB starts with `-ex 'set confirm off'` to automatically suppress interactive prompts (like deleting breakpoints or terminating threads). In the future, parse GDB's interactive queries programmatically and expose confirmation prompts to the user in the UI instead of using a blanket `set confirm off`.

@@ -35,7 +35,11 @@ function ThreadsView({ threads }) {
             <thead><tr><th>ID</th><th>TARGET ID</th><th>STATE</th></tr></thead>
             <tbody>
                 {threads.map((t) => (
-                    <tr key={t.id}><td>{t.id}</td><td title={t['target-id']}>{t['target-id']}</td><td>{t.state}</td></tr>
+                    <tr key={t.id}>
+                        <td>{t.id}</td>
+                        <td title={t['target-id']}>{t['target-id']}</td>
+                        <td title={t.state}>{t.state}</td>
+                    </tr>
                 ))}
             </tbody>
         </table>
@@ -66,29 +70,37 @@ function StackView({ stack }) {
 function LocalsView({ locals }) {
     if (!locals || locals.length === 0) return <div className="empty-state">No local variables</div>;
     return (
-        <table className="data-table">
+        <table className="data-table two-col">
             <thead><tr><th>NAME</th><th>VALUE</th></tr></thead>
             <tbody>
                 {locals.map((v, i) => (
-                    <tr key={i}><td>{v.name}</td><td title={v.value}>{v.value || '?'}</td></tr>
+                    <tr key={i}>
+                        <td title={v.name}>{v.name}</td>
+                        <td title={v.value}>{v.value || '?'}</td>
+                    </tr>
                 ))}
             </tbody>
         </table>
     );
 }
 
-function BreakpointsView({ breakpoints }) {
-    if (!breakpoints || breakpoints.length === 0) return <div className="empty-state">No breakpoints</div>;
+function BreakpointsView({ breakpoints, userBreakpoints }) {
+    if (!userBreakpoints || userBreakpoints.length === 0) return <div className="empty-state">No breakpoints</div>;
+    
     return (
         <table className="data-table">
             <thead><tr><th>#</th><th>TYPE</th><th>WHERE</th></tr></thead>
             <tbody>
-                {breakpoints.map((b, i) => {
-                    const bkpt = b.bkpt || b;
-                    const addr = bkpt.addr !== "<PENDING>" ? bkpt.addr : "Pending";
-                    const func = bkpt['original-location'] || bkpt.func || addr;
+                {userBreakpoints.map((line, i) => {
+                    let gdbBp = null;
+                    if (breakpoints) {
+                        gdbBp = breakpoints.find(b => parseInt((b.bkpt || b).line) === line);
+                        if (gdbBp) gdbBp = gdbBp.bkpt || gdbBp;
+                    }
+                    const num = gdbBp ? gdbBp.number : (i + 1);
+                    const func = `main.cpp:${line}`;
                     return (
-                        <tr key={i}><td>{bkpt.number}</td><td>{bkpt.type}</td><td title={func}>{func}</td></tr>
+                        <tr key={i}><td>{num}</td><td>breakpoint</td><td title={func}>{func}</td></tr>
                     );
                 })}
             </tbody>
@@ -99,11 +111,14 @@ function BreakpointsView({ breakpoints }) {
 function RegistersView({ registers }) {
     if (!registers || registers.length === 0) return <div className="empty-state">No registers</div>;
     return (
-        <table className="data-table">
+        <table className="data-table two-col">
             <thead><tr><th>REG</th><th>VALUE</th></tr></thead>
             <tbody>
                 {registers.map((r, i) => (
-                    <tr key={i}><td>r{r.number}</td><td title={r.value}>{r.value}</td></tr>
+                    <tr key={i}>
+                        <td>r{r.number}</td>
+                        <td title={r.value}>{r.value}</td>
+                    </tr>
                 ))}
             </tbody>
         </table>
@@ -111,7 +126,16 @@ function RegistersView({ registers }) {
 }
 
 export default function DataPanels() {
-    const { state } = useDebugger() || { state: {} };
+    const { state, userBreakpoints, mainLineNumber } = useDebugger() || { state: {}, userBreakpoints: [] };
+    
+    const combinedBreakpoints = React.useMemo(() => {
+        let all = [...(userBreakpoints || [])];
+        if (mainLineNumber && !all.includes(mainLineNumber)) {
+            all.push(mainLineNumber);
+        }
+        return all.sort((a, b) => a - b);
+    }, [userBreakpoints, mainLineNumber]);
+
     return (
         <div className="sidebar">
             <Panel title="CALL STACK" icon={Layers}>
@@ -121,7 +145,7 @@ export default function DataPanels() {
                 <LocalsView locals={state.locals} />
             </Panel>
             <Panel title="BREAKPOINTS" icon={MapPin}>
-                <BreakpointsView breakpoints={state.breakpoints} />
+                <BreakpointsView breakpoints={state.breakpoints} userBreakpoints={combinedBreakpoints} />
             </Panel>
             <Panel title="THREADS" icon={Activity}>
                 <ThreadsView threads={state.threads} />

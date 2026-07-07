@@ -5,7 +5,19 @@ import { useTerminal } from './TerminalContext';
 const DebugContext = createContext(null);
 
 export function DebugProvider({ sessionId, children }) {
-    const { terminalRef } = useTerminal();
+    const { terminalRef, setActiveTab, code } = useTerminal();
+    
+    const mainLineNumber = React.useMemo(() => {
+        if (!code) return null;
+        const lines = code.split('\n');
+        for (let i = 0; i < lines.length; i++) {
+            if (/int\s+main\b/.test(lines[i]) || /\bmain\s*\(/.test(lines[i])) {
+                return i + 1;
+            }
+        }
+        return null;
+    }, [code]);
+    
     const [state, setState] = useState({
         threads: [],
         stack: [],
@@ -24,9 +36,26 @@ export function DebugProvider({ sessionId, children }) {
     const wsRef = useRef(null);
 
     const toggleBreakpoint = (line) => {
-        setUserBreakpoints(prev => 
-            prev.includes(line) ? prev.filter(l => l !== line) : [...prev, line]
-        );
+        if (line === mainLineNumber) return; // Unremovable
+        
+        setUserBreakpoints(prev => {
+            const isAdding = !prev.includes(line);
+            
+            // If GDB is active, dynamically update
+            if (state.status !== "idle" && wsRef.current?.readyState === WebSocket.OPEN) {
+                if (isAdding) {
+                    wsRef.current.send(JSON.stringify({ command: `-break-insert main.cpp:${line}` }));
+                } else {
+                    // Find the breakpoint number from GDB state
+                    const bp = state.breakpoints.find(b => parseInt(b.line) === line);
+                    if (bp && bp.number) {
+                        wsRef.current.send(JSON.stringify({ command: `-break-delete ${bp.number}` }));
+                    }
+                }
+            }
+            
+            return isAdding ? [...prev, line] : prev.filter(l => l !== line);
+        });
     };
 
     useEffect(() => {
@@ -85,6 +114,8 @@ export function DebugProvider({ sessionId, children }) {
     };
 
     const runGdb = () => {
+        setActiveTab('terminal');
+        
         if (terminalRef?.current) {
             terminalRef.current.write('\r\n\x1b[33mCompiling and starting GDB...\x1b[0m\r\n');
         }
@@ -113,6 +144,7 @@ export function DebugProvider({ sessionId, children }) {
             state,
             connected,
             userBreakpoints,
+            mainLineNumber,
             toggleBreakpoint,
             sendCommand,
             runGdb,

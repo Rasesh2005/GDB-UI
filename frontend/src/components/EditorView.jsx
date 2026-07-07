@@ -20,7 +20,7 @@ import { themes } from '../utils/monacoThemes';
 
 export default function EditorView() {
     const { sessionId, code, setCode } = useTerminal();
-    const { userBreakpoints = [], toggleBreakpoint = () => { }, state } = useDebugger() || {};
+    const { userBreakpoints = [], mainLineNumber, toggleBreakpoint = () => { }, state } = useDebugger() || {};
     const executionLineRef = useRef([]);
     const [isInitialLoad, setIsInitialLoad] = useState(true);
     const [saveStatus, setSaveStatus] = useState('Auto-saved');
@@ -34,6 +34,11 @@ export default function EditorView() {
     const [isSavingTheme, setIsSavingTheme] = useState(false);
     const [user, setUser] = useState(null);
 
+    const toggleBreakpointRef = useRef(toggleBreakpoint);
+    useEffect(() => {
+        toggleBreakpointRef.current = toggleBreakpoint;
+    }, [toggleBreakpoint]);
+
     const handleEditorDidMount = (editor, monaco) => {
         editorRef.current = editor;
         monacoRef.current = monaco;
@@ -46,7 +51,9 @@ export default function EditorView() {
         editor.onMouseDown((e) => {
             if (e.target.type === monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN) {
                 const lineNumber = e.target.position.lineNumber;
-                toggleBreakpoint(lineNumber);
+                if (toggleBreakpointRef.current) {
+                    toggleBreakpointRef.current(lineNumber);
+                }
             }
         });
 
@@ -116,8 +123,18 @@ export default function EditorView() {
             }
         }));
 
+        if (mainLineNumber && !userBreakpoints.includes(mainLineNumber)) {
+            newDecorations.push({
+                range: new monacoRef.current.Range(mainLineNumber, 1, mainLineNumber, 1),
+                options: {
+                    isWholeLine: false,
+                    glyphMarginClassName: 'breakpoint-glyph unremovable'
+                }
+            });
+        }
+
         decorationsRef.current = editorRef.current.deltaDecorations(decorationsRef.current, newDecorations);
-    }, [userBreakpoints]);
+    }, [userBreakpoints, mainLineNumber]);
 
     // Handle execution highlights (current line being debugged)
     useEffect(() => {

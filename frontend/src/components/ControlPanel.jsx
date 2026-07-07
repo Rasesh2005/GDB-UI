@@ -2,16 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { useDebugger } from '../contexts/DebugContext';
 import { useTerminal } from '../contexts/TerminalContext';
 import { useAuth } from '../contexts/AuthContext';
-import { 
-    Play, Bug, ChevronRight, CornerDownRight, 
-    RotateCcw, Octagon, LogOut, User, 
+import {
+    Play, Bug, ChevronRight, CornerDownRight,
+    RotateCcw, Octagon, LogOut, User,
     Menu, Pause, Square, FolderOpen
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
 export default function ControlPanel({ onToggleSidebar }) {
     const { connected: termConnected, runFull, code, isRunning: isProgramRunning } = useTerminal();
-    const { connected: dbgConnected, state, runGdb, stepInto, stepOver,stepBack,stepOnto, continueExec, pauseExec, stopExec } = useDebugger() || {};
+    const { connected: dbgConnected, state, runGdb, stepInto, stepOver, stepBack, stepOnto, continueExec, pauseExec, stopExec } = useDebugger() || {};
     const { user, openAuthModal, logout } = useAuth();
     const location = useLocation();
     const [projectName, setProjectName] = useState('');
@@ -47,21 +47,21 @@ export default function ControlPanel({ onToggleSidebar }) {
                 <button className="hamburger-btn" onClick={onToggleSidebar} title="Toggle Sidebar">
                     <Menu size={20} />
                 </button>
-                
-                <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
-                    <button 
-                        className="btn run-btn" 
-                        onClick={() => runFull(code)} 
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <button
+                        className="btn run-btn"
+                        onClick={() => runFull(code)}
                         disabled={!termConnected || isProgramRunning}
                     >
                         <Play size={12} fill="currentColor" />
                         Run
                     </button>
-                    
-                    <div style={{width: '1px', height: '18px', background: 'var(--border-color)', margin: '0 8px'}} />
-                    
+
+                    <div style={{ width: '1px', height: '18px', background: 'var(--border-color)', margin: '0 8px' }} />
+
                     <button className="btn" onClick={runGdb} disabled={!dbgConnected || isRunning}>
-                        <Bug size={12} style={{color: '#4ec9b0'}} />
+                        <Bug size={12} style={{ color: '#4ec9b0' }} />
                         Debug
                     </button>
                     <button className="btn" onClick={continueExec} disabled={!dbgConnected || !isStopped}>
@@ -73,7 +73,7 @@ export default function ControlPanel({ onToggleSidebar }) {
                         Into
                     </button>
                     <button className="btn" onClick={stepOver} title="Step Over" disabled={!dbgConnected || !isStopped}>
-                        <RotateCcw size={12} style={{transform: 'scaleX(-1)'}} />
+                        <RotateCcw size={12} style={{ transform: 'scaleX(-1)' }} />
                         Over
                     </button>
                     <button className="btn" onClick={stepBack} title="Step Back (Reverse Next)" disabled={!dbgConnected || !isStopped}>
@@ -81,10 +81,10 @@ export default function ControlPanel({ onToggleSidebar }) {
                         Back
                     </button>
                     <button className="btn" onClick={stepOnto} title="Step Onto (Reverse Step)" disabled={!dbgConnected || !isStopped}>
-                        <CornerDownRight size={12} style={{transform: 'scaleY(-1) scaleX(-1)'}} />
+                        <CornerDownRight size={12} style={{ transform: 'scaleY(-1) scaleX(-1)' }} />
                         Onto
                     </button>
-                    
+
                     {state?.status === 'running' ? (
                         <button className="btn danger" onClick={pauseExec}>
                             <Pause size={12} />
@@ -101,35 +101,35 @@ export default function ControlPanel({ onToggleSidebar }) {
 
             <div className="toolbar-status">
                 {user ? (
-                    <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         {projectName && (
                             <div className="project-display">
-                                <FolderOpen size={14} style={{color: '#4ec9b0', opacity: 0.8}} />
+                                <FolderOpen size={14} style={{ color: '#4ec9b0', opacity: 0.8 }} />
                                 <span className="project-name">{projectName}</span>
                             </div>
                         )}
-                        <Link to="/profile" className="btn primary" style={{textDecoration: 'none', padding: '4px 12px'}}>Projects</Link>
+                        <Link to="/profile" className="btn primary" style={{ textDecoration: 'none', padding: '4px 12px' }}>Projects</Link>
                         <div className="status-item">
-                            <User size={12} style={{color: 'var(--accent)'}} />
-                            <span className="status-label" style={{color: '#fff', fontWeight: '500'}}>{user.username}</span>
+                            <User size={12} style={{ color: 'var(--accent)' }} />
+                            <span className="status-label" style={{ color: '#fff', fontWeight: '500' }}>{user.username}</span>
                         </div>
-                        <button className="btn" style={{padding: '2px 8px'}} onClick={logout} title="Logout">
+                        <button className="btn" style={{ padding: '2px 8px' }} onClick={logout} title="Logout">
                             <LogOut size={12} />
                         </button>
                     </div>
                 ) : (
                     <button className="btn primary login-btn" onClick={openAuthModal}>Login / Register</button>
                 )}
-                
-                <div style={{width: '1px', height: '18px', background: 'var(--border-color)', margin: '0 4px'}} />
-                
+
+                <div style={{ width: '1px', height: '18px', background: 'var(--border-color)', margin: '0 4px' }} />
+
                 <div className="status-item" title={termConnected ? 'Terminal Connected' : 'Terminal Offline'}>
                     <span className="status-label">TERM</span>
                     <div className={`status-badge ${termConnected ? 'connected' : 'offline'}`}>
                         {termConnected ? 'ON' : 'OFF'}
                     </div>
                 </div>
-                
+
                 <div className="status-item" title={dbgConnected ? `Debugger: ${state?.status}` : 'Debugger Disconnected'}>
                     <span className="status-label">DBG</span>
                     <div className={`status-badge ${dbgConnected ? (state?.status === 'idle' ? 'offline' : 'connected') : 'offline'}`}>
