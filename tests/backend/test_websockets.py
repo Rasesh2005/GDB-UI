@@ -20,8 +20,8 @@ from starlette.testclient import TestClient
 
 
 def get_ws_client():
-    import script
-    return TestClient(script.app, raise_server_exceptions=False)
+    from backend.main import app
+    return TestClient(app, raise_server_exceptions=False)
 
 
 # ---------------------------------------------------------------------------
@@ -123,4 +123,4 @@ class TestWebSocketCookies:
                 # May be SESSION_ID:... or an error about Docker — either is fine here
                 assert msg  # something must be sent
         except Exception:
-            pytest.skip("Docker not available — skipping WS cookie cookie-forwarding test")
+            pytest.skip("Docker not available — skipping WS cookie-forwarding test")

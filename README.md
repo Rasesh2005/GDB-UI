@@ -64,18 +64,23 @@ Access at **http://localhost:8000**.
 
 ## Development
 
-### Backend only (hot-reload)
+During development, it is recommended to run the frontend and backend on different ports to enable hot-reloading for both systems.
+
+### 1. Start Backend with Hot-Reload (Port 8000)
 
 ```bash
-uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
+uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-### Frontend dev server (with proxy to backend)
+### 2. Start Frontend Dev Server (Port 5173)
 
 ```bash
 cd frontend
 npm run dev
 ```
+
+*   **Note:** The frontend development server is configured in `vite.config.js` to automatically proxy API (`/api/*`) and WebSocket (`/ws/*`) requests to `http://localhost:8000` so that you do not encounter CORS or cross-origin connection issues.
+*   Open your browser and navigate to **http://localhost:5173** to preview your changes.
 
 ### Run tests
 

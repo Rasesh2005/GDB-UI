@@ -21,23 +21,27 @@ from fastapi.testclient import TestClient
 def temp_db(tmp_path, monkeypatch):
     """
     Creates a fresh temporary SQLite database for every test function.
-    Patches script.DB_PATH so every import of DB_PATH resolves to the temp file.
+    Patches backend.config.DB_PATH so every import of DB_PATH resolves to the temp file.
     """
     db_file = str(tmp_path / "test.db")
 
-    # Patch both the module-level variable AND the os.makedirs guard
     monkeypatch.setenv("GDB_TEST_DB", db_file)
 
-    import script
-    monkeypatch.setattr(script, "DB_PATH", db_file)
-    monkeypatch.setattr(script, "DATA_USERS_DIR", str(tmp_path / "users"))
-    monkeypatch.setattr(script, "SANDBOXES_DIR", str(tmp_path / "sandboxes"))
+    import backend.config as config
+    import backend.database as database
+
+    monkeypatch.setattr(config, "DB_PATH", db_file)
+    monkeypatch.setattr(config, "DATA_USERS_DIR", str(tmp_path / "users"))
+    monkeypatch.setattr(config, "SANDBOXES_DIR", str(tmp_path / "sandboxes"))
+
+    # Patch the DB_PATH reference inside the database module itself
+    monkeypatch.setattr(database, "DB_PATH", db_file)
 
     os.makedirs(str(tmp_path / "users"), exist_ok=True)
     os.makedirs(str(tmp_path / "sandboxes"), exist_ok=True)
 
     # Re-run DB initialisation against the temp file
-    script.init_db()
+    database.init_db()
 
     yield db_file
 
@@ -48,8 +52,8 @@ def client(temp_db):
     Returns a FastAPI TestClient for every test.
     The TestClient shares the same in-process app, so the patched DB_PATH applies.
     """
-    import script
-    with TestClient(script.app, raise_server_exceptions=False) as c:
+    from backend.main import app
+    with TestClient(app, raise_server_exceptions=False) as c:
         yield c
 
 

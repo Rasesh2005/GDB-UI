@@ -21,7 +21,7 @@ class TestUserCreateModel:
     """Verify that UserCreate rejects bad inputs before they reach a route handler."""
 
     def test_valid_user(self):
-        from script import UserCreate
+        from backend.models import UserCreate
         user = UserCreate(username="alice", password="secret123")
         assert user.username == "alice"
         assert user.password == "secret123"
@@ -33,11 +33,10 @@ class TestUserCreateModel:
               ValidationError; without it the model accepts it (test will be skipped
               to avoid a false-fail).
         """
-        from script import UserCreate
+        from backend.models import UserCreate
         try:
             user = UserCreate(username="", password="secret")
             # If Pydantic doesn't raise, just assert the field is empty string
-            # (signals that the validator is not yet present)
             assert user.username == "", (
                 "No min_length validator on username — add one to enforce non-blank names."
             )
@@ -45,7 +44,7 @@ class TestUserCreateModel:
             pass  # Correct: Pydantic rejects it
 
     def test_empty_password_raises(self):
-        from script import UserCreate
+        from backend.models import UserCreate
         try:
             user = UserCreate(username="alice", password="")
             assert user.password == ""
@@ -53,12 +52,12 @@ class TestUserCreateModel:
             pass
 
     def test_missing_password_raises(self):
-        from script import UserCreate
+        from backend.models import UserCreate
         with pytest.raises((ValidationError, TypeError)):
             UserCreate(username="alice")
 
     def test_missing_username_raises(self):
-        from script import UserCreate
+        from backend.models import UserCreate
         with pytest.raises((ValidationError, TypeError)):
             UserCreate(password="secret")
 
@@ -71,15 +70,15 @@ class TestHashPassword:
     """hash_password must be deterministic, collision-free, and return hex output."""
 
     def test_deterministic(self):
-        from script import hash_password
+        from backend.database import hash_password
         assert hash_password("abc") == hash_password("abc")
 
     def test_different_passwords_produce_different_hashes(self):
-        from script import hash_password
+        from backend.database import hash_password
         assert hash_password("abc") != hash_password("xyz")
 
     def test_returns_hex_string(self):
-        from script import hash_password
+        from backend.database import hash_password
         h = hash_password("test")
         assert isinstance(h, str)
         assert len(h) > 0
@@ -88,12 +87,12 @@ class TestHashPassword:
         )
 
     def test_does_not_return_plaintext(self):
-        from script import hash_password
+        from backend.database import hash_password
         assert hash_password("mysecret") != "mysecret"
 
     def test_empty_password_hashes_consistently(self):
         """Even an empty password must hash consistently (so the DB doesn't explode)."""
-        from script import hash_password
+        from backend.database import hash_password
         assert hash_password("") == hash_password("")
 
 
@@ -114,35 +113,35 @@ class TestDebugStateSerialize:
     }
 
     def test_all_required_keys_present(self):
-        from script import DebugState
+        from backend.models import DebugState
         data = DebugState().serialize()
         missing = self.REQUIRED_KEYS - set(data.keys())
         assert not missing, f"serialize() is missing keys: {missing}"
 
     def test_no_extra_unexpected_keys(self):
         """Prevents silent additions that could confuse the frontend."""
-        from script import DebugState
+        from backend.models import DebugState
         data = DebugState().serialize()
         extra = set(data.keys()) - self.REQUIRED_KEYS
         assert not extra, f"serialize() has unexpected extra keys: {extra}"
 
     def test_default_status_is_idle(self):
-        from script import DebugState
+        from backend.models import DebugState
         assert DebugState().status == "idle"
 
     def test_default_lists_are_empty(self):
-        from script import DebugState
+        from backend.models import DebugState
         s = DebugState()
         for key in ("threads", "stack", "locals", "globals", "registers",
                     "breakpoints", "functions", "memory_map"):
             assert getattr(s, key) == [], f"{key} should default to []"
 
     def test_default_current_frame_is_none(self):
-        from script import DebugState
+        from backend.models import DebugState
         assert DebugState().current_frame is None
 
     def test_serialize_returns_dict(self):
-        from script import DebugState
+        from backend.models import DebugState
         assert isinstance(DebugState().serialize(), dict)
 
 
@@ -156,11 +155,13 @@ class TestInitDb:
     Testing the schema directly catches any future ALTER TABLE omissions.
     """
 
-    def test_creates_users_and_sessions_tables(self, tmp_path, monkeypatch):
-        import script
+    def test_creates_users_sessions_and_projects_tables(self, tmp_path, monkeypatch):
+        import backend.database as database
+        import backend.config as config
         db = str(tmp_path / "schema_test.db")
-        monkeypatch.setattr(script, "DB_PATH", db)
-        script.init_db()
+        monkeypatch.setattr(config, "DB_PATH", db)
+        monkeypatch.setattr(database, "DB_PATH", db)
+        database.init_db()
 
         with sqlite3.connect(db) as conn:
             cur = conn.cursor()
@@ -169,12 +170,15 @@ class TestInitDb:
 
         assert "users" in tables, "users table was not created"
         assert "sessions" in tables, "sessions table was not created"
+        assert "projects" in tables, "projects table was not created"
 
     def test_users_table_has_expected_columns(self, tmp_path, monkeypatch):
-        import script
+        import backend.database as database
+        import backend.config as config
         db = str(tmp_path / "cols_test.db")
-        monkeypatch.setattr(script, "DB_PATH", db)
-        script.init_db()
+        monkeypatch.setattr(config, "DB_PATH", db)
+        monkeypatch.setattr(database, "DB_PATH", db)
+        database.init_db()
 
         with sqlite3.connect(db) as conn:
             cur = conn.cursor()
@@ -184,12 +188,15 @@ class TestInitDb:
         assert "id" in columns
         assert "username" in columns
         assert "password_hash" in columns
+        assert "theme" in columns  # Added in new backend
 
     def test_sessions_table_has_expected_columns(self, tmp_path, monkeypatch):
-        import script
+        import backend.database as database
+        import backend.config as config
         db = str(tmp_path / "sess_test.db")
-        monkeypatch.setattr(script, "DB_PATH", db)
-        script.init_db()
+        monkeypatch.setattr(config, "DB_PATH", db)
+        monkeypatch.setattr(database, "DB_PATH", db)
+        database.init_db()
 
         with sqlite3.connect(db) as conn:
             cur = conn.cursor()
@@ -199,10 +206,30 @@ class TestInitDb:
         assert "token" in columns
         assert "user_id" in columns
 
+    def test_projects_table_has_expected_columns(self, tmp_path, monkeypatch):
+        import backend.database as database
+        import backend.config as config
+        db = str(tmp_path / "proj_test.db")
+        monkeypatch.setattr(config, "DB_PATH", db)
+        monkeypatch.setattr(database, "DB_PATH", db)
+        database.init_db()
+
+        with sqlite3.connect(db) as conn:
+            cur = conn.cursor()
+            cur.execute("PRAGMA table_info(projects)")
+            columns = {row[1] for row in cur.fetchall()}
+
+        assert "id" in columns
+        assert "user_id" in columns
+        assert "name" in columns
+        assert "created_at" in columns
+
     def test_init_db_is_idempotent(self, tmp_path, monkeypatch):
         """Calling init_db() twice must not raise an error."""
-        import script
+        import backend.database as database
+        import backend.config as config
         db = str(tmp_path / "idem_test.db")
-        monkeypatch.setattr(script, "DB_PATH", db)
-        script.init_db()
-        script.init_db()  # Should not raise
+        monkeypatch.setattr(config, "DB_PATH", db)
+        monkeypatch.setattr(database, "DB_PATH", db)
+        database.init_db()
+        database.init_db()  # Should not raise

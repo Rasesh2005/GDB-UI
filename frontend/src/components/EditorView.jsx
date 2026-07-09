@@ -5,18 +5,6 @@ import Editor from '@monaco-editor/react';
 import { Settings, Save, Sparkles, Languages } from 'lucide-react';
 import { themes } from '../utils/monacoThemes';
 
-// const DEFAULT_CODE = `#include <iostream>
-// using namespace std;
-
-// int main() {
-//     int x = 10;
-//     int y = 20;
-
-//     cout << "Hello from Advanced React Sandbox!" << endl;
-
-//     return 0;
-// }
-// `;
 
 export default function EditorView() {
     const { sessionId, code, setCode } = useTerminal();
